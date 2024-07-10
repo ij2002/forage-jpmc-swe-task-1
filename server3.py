@@ -194,17 +194,24 @@ def order_book(orders, book, stock_name):
 
 def generate_csv():
     """ Generate a CSV of order history. """
+    #open a file in write-binary mode
     with open('test.csv', 'wb') as f:
         writer = csv.writer(f)
+        #orders from market conditions
         for t, stock, side, order, size in orders(market()):
+            #stop when simulation length is reached
             if t > MARKET_OPEN + SIM_LENGTH:
                 break
+                #write details to csv file
             writer.writerow([t, stock, side, order, size])
 
 
 def read_csv():
     """ Read a CSV or order history into a list. """
+    #read the csv file in text mode
     with open('test.csv', 'rt') as f:
+    #read each row in the csv and
+    #parse order details
         for time, stock, side, order, size in csv.reader(f):
             yield dateutil.parser.parse(time), stock, side, float(order), int(size)
 
@@ -217,12 +224,12 @@ class ThreadedHTTPServer(ThreadingMixIn, http.server.HTTPServer):
     """ Boilerplate class for a multithreaded HTTP Server, with working
         shutdown.
     """
-    allow_reuse_address = True
+    allow_reuse_address = True #allow reuse of the address
 
     def shutdown(self):
         """ Override MRO to shutdown properly. """
-        self.socket.close()
-        http.server.HTTPServer.shutdown(self)
+        self.socket.close() #close the server socket
+        http.server.HTTPServer.shutdown(self) #shutdown the HTTP server
 
 
 def route(path):
@@ -231,6 +238,7 @@ def route(path):
     """
 
     def _route(f):
+        #set route of the function to the given path
         setattr(f, '__route__', path)
         return f
 
@@ -241,24 +249,24 @@ def read_params(path):
     """ Read query parameters into a dictionary if they are parseable,
         otherwise returns None.
     """
-    query = path.split('?')
-    if len(query) > 1:
-        query = query[1].split('&')
-        return dict(map(lambda x: x.split('='), query))
+    query = path.split('?') #split path at '?' to separate base path and query
+    if len(query) > 1: #check if there are query parameters
+        query = query[1].split('&') #split query parameters at '&' to get individual key-value pairs
+        return dict(map(lambda x: x.split('='), query)) #split each key-value pair at '=' and convert to dictionary
 
 
 def get(req_handler, routes):
     """ Map a request to the appropriate route of a routes instance. """
     for name, handler in routes.__class__.__dict__.items():
-        if hasattr(handler, "__route__"):
-            if None != re.search(handler.__route__, req_handler.path):
-                req_handler.send_response(200)
-                req_handler.send_header('Content-Type', 'application/json')
-                req_handler.send_header('Access-Control-Allow-Origin', '*')
-                req_handler.end_headers()
-                params = read_params(req_handler.path)
-                data = json.dumps(handler(routes, params)) + '\n'
-                req_handler.wfile.write(bytes(data, encoding='utf-8'))
+        if hasattr(handler, "__route__"): #check if handler has a route
+            if None != re.search(handler.__route__, req_handler.path): #match the route with the request path
+                req_handler.send_response(200) #send HTTP 200 OK response
+                req_handler.send_header('Content-Type', 'application/json') #set response content type to JSON
+                req_handler.send_header('Access-Control-Allow-Origin', '*') #allow cross-origin requests
+                req_handler.end_headers() #end headers section
+                params = read_params(req_handler.path) #parse query parameters
+                data = json.dumps(handler(routes, params)) + '\n' #call handler and convert result to JSON
+                req_handler.wfile.write(bytes(data, encoding='utf-8')) #write response data to output stream
                 return
 
 
@@ -275,9 +283,9 @@ def run(routes, host='0.0.0.0', port=8080):
             get(self, routes)
 
     server = ThreadedHTTPServer((host, port), RequestHandler)
-    thread = threading.Thread(target=server.serve_forever)
-    thread.daemon = True
-    thread.start()
+    thread = threading.Thread(target=server.serve_forever) #create a new thread to run the server
+    thread.daemon = True #set the thread as a daemon thread (background thread that doesnt prevent program from exiting when all non-daemon threads have completed)
+    thread.start() 
     print('HTTP server started on port 8080')
     while True:
         from time import sleep
@@ -319,7 +327,7 @@ class App(object):
         for t, bids, asks in self._data_1:
             if REALTIME:
                 while t > self._sim_start + (datetime.now() - self._rt_start):
-                    yield t, bids, asks
+                    yield t, bids, asks #yield data if real time
             else:
                 yield t, bids, asks
 
@@ -334,8 +342,8 @@ class App(object):
 
     def read_10_first_lines(self):
         for _ in iter(range(10)):
-            next(self._data_1)
-            next(self._data_2)
+            next(self._data_1) #read next line of data_1
+            next(self._data_2) 
 
     @route('/query')
     def handle_query(self, x):
@@ -347,22 +355,22 @@ class App(object):
             t2, bids2, asks2 = next(self._current_book_2)
         except Exception as e:
             print("error getting stocks...reinitalizing app")
-            self.__init__()
-            t1, bids1, asks1 = next(self._current_book_1)
-            t2, bids2, asks2 = next(self._current_book_2)
-        t = t1 if t1 > t2 else t2
+            self.__init__() #reinitialize app if error
+            t1, bids1, asks1 = next(self._current_book_1) 
+            t2, bids2, asks2 = next(self._current_book_2) 
+        t = t1 if t1 > t2 else t2 #get latest timestamp
         print('Query received @ t%s' % t)
         return [{
-            'id': x and x.get('id', None),
+            'id': x and x.get('id', None), #get id if exists
             'stock': 'ABC',
             'timestamp': str(t),
             'top_bid': bids1 and {
-                'price': bids1[0][0],
-                'size': bids1[0][1]
+                'price': bids1[0][0], #get top bid price
+                'size': bids1[0][1] #get top bid size
             },
             'top_ask': asks1 and {
-                'price': asks1[0][0],
-                'size': asks1[0][1]
+                'price': asks1[0][0], #get top ask price
+                'size': asks1[0][1] #get top ask size
             }
         },
             {
@@ -370,12 +378,12 @@ class App(object):
                 'stock': 'DEF',
                 'timestamp': str(t),
                 'top_bid': bids2 and {
-                    'price': bids2[0][0],
-                    'size': bids2[0][1]
+                    'price': bids2[0][0], #get top bid price
+                    'size': bids2[0][1] #get top bid size
                 },
                 'top_ask': asks2 and {
-                    'price': asks2[0][0],
-                    'size': asks2[0][1]
+                    'price': asks2[0][0], #get top ask price
+                    'size': asks2[0][1] #get top ask size
                 }
             }]
 
@@ -385,7 +393,7 @@ class App(object):
 # Main
 
 if __name__ == '__main__':
-    if not os.path.isfile('test.csv'):
-        print("No data found, generating...")
-        generate_csv()
+    if not os.path.isfile('test.csv'): #check if test.csv exists
+        print("No data found, generating...") #notify user no data found
+        generate_csv() #create test.csv if not found
     run(App())
